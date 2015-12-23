@@ -10,42 +10,15 @@
 
 use ::{Color, Point, Rect, Scalar};
 use graph::{Container, Graph, Visitable};
+use graphics;
 use std::iter::once;
 use theme::Theme;
 use widget::{self, primitive};
 
 #[doc(inline)]
-pub use super::context::Context;
-pub use super::texture::ImageSize;
-pub use super::transformed::Transformed;
+pub use graphics::{Context, DrawState, Graphics, ImageSize, Transformed};
 #[doc(inline)]
-pub use super::character::{Character, CharacterCache};
-
-
-/// Implemented by all graphics back-ends.
-/// stub
-pub trait Graphics: Sized {
-    /// The texture type associated with the back-end.
-    type Texture: ImageSize;
-
-    /// Draw a series of lines between the given **Point**s using the given style.
-    fn draw_lines<I>(&mut self,
-                     context: &Context,
-                     theme: &Theme,
-                     mut points: I,
-                     style: primitive::line::Style)
-        where I: Iterator<Item=Point>;
-
-    /// Draw a rectangle at the given Rect.
-    fn draw_rectangle(&mut self,
-                         context: &Context,
-                         rect: Rect,
-                         color: Color);
-
-    fn draw_text(&mut self,
-                 rect: Rect,
-                 line: &str);
-}
+pub use graphics::character::{Character, CharacterCache};
 
 
 /// Draw the given **Graph** using the given **CharacterCache** and **Graphics** backends.
@@ -109,77 +82,75 @@ pub fn draw_from_graph<G, C>(context: Context,
 /// This is non-trivial as we must consider the view_size, viewport, the difference in
 /// co-ordinate systems and the conversion from `f64` dimensions to `u16`.
 fn crop_context(context: Context, rect: Rect) -> Context {
-    panic!("not yet implemented");
-    context
-    // use utils::map_range;
-    // let Context { draw_state, .. } = context;
+    use utils::map_range;
+    let Context { draw_state, .. } = context;
 
-    // let (x, y, w, h) = rect.x_y_w_h();
+    let (x, y, w, h) = rect.x_y_w_h();
 
-    // // Our view_dim is our virtual window size which is consistent no matter the display.
-    // let view_dim = context.get_view_size();
+    // Our view_dim is our virtual window size which is consistent no matter the display.
+    let view_dim = context.get_view_size();
 
-    // // Our draw_dim is the actual window size in pixels. Our target crop area must be
-    // // represented in this size.
-    // let draw_dim = match context.viewport {
-    //     Some(viewport) => [viewport.draw_size[0] as f64, viewport.draw_size[1] as f64],
-    //     None => view_dim,
-    // };
+    // Our draw_dim is the actual window size in pixels. Our target crop area must be
+    // represented in this size.
+    let draw_dim = match context.viewport {
+        Some(viewport) => [viewport.draw_size[0] as f64, viewport.draw_size[1] as f64],
+        None => view_dim,
+    };
 
-    // // Calculate the distance to the edges of the window from the center.
-    // let left = -view_dim[0] / 2.0;
-    // let right = view_dim[0] / 2.0;
-    // let bottom = -view_dim[1] / 2.0;
-    // let top = view_dim[1] / 2.0;
+    // Calculate the distance to the edges of the window from the center.
+    let left = -view_dim[0] / 2.0;
+    let right = view_dim[0] / 2.0;
+    let bottom = -view_dim[1] / 2.0;
+    let top = view_dim[1] / 2.0;
 
-    // // We start with the x and y in the center of our crop area, however we need it to be
-    // // at the top left of the crop area.
-    // let left_x = x - w as f64 / 2.0;
-    // let top_y = y - h as f64 / 2.0;
+    // We start with the x and y in the center of our crop area, however we need it to be
+    // at the top left of the crop area.
+    let left_x = x - w as f64 / 2.0;
+    let top_y = y - h as f64 / 2.0;
 
-    // // Map the position at the top left of the crop area in view_dim to our draw_dim.
-    // let x = map_range(left_x, left, right, 0, draw_dim[0] as i32);
-    // let y = map_range(top_y, bottom, top, 0, draw_dim[1] as i32);
+    // Map the position at the top left of the crop area in view_dim to our draw_dim.
+    let x = map_range(left_x, left, right, 0, draw_dim[0] as i32);
+    let y = map_range(top_y, bottom, top, 0, draw_dim[1] as i32);
 
-    // // Convert the w and h from our view_dim to the draw_dim.
-    // let w_scale = draw_dim[0] / view_dim[0];
-    // let h_scale = draw_dim[1] / view_dim[1];
-    // let w = w * w_scale;
-    // let h = h * h_scale;
+    // Convert the w and h from our view_dim to the draw_dim.
+    let w_scale = draw_dim[0] / view_dim[0];
+    let h_scale = draw_dim[1] / view_dim[1];
+    let w = w * w_scale;
+    let h = h * h_scale;
 
-    // // If we ended up with negative coords for the crop area, we'll use 0 instead as we
-    // // can't represent the negative coords with `u16` (the target DrawState dimension type).
-    // // We'll hold onto the lost negative values (x_neg and y_neg) so that we can compensate
-    // // with the width and height.
-    // let x_neg = if x < 0 { x } else { 0 };
-    // let y_neg = if y < 0 { y } else { 0 };
-    // let mut x = ::std::cmp::max(0, x) as u16;
-    // let mut y = ::std::cmp::max(0, y) as u16;
-    // let mut w = ::std::cmp::max(0, (w as i32 + x_neg)) as u16;
-    // let mut h = ::std::cmp::max(0, (h as i32 + y_neg)) as u16;
+    // If we ended up with negative coords for the crop area, we'll use 0 instead as we
+    // can't represent the negative coords with `u16` (the target DrawState dimension type).
+    // We'll hold onto the lost negative values (x_neg and y_neg) so that we can compensate
+    // with the width and height.
+    let x_neg = if x < 0 { x } else { 0 };
+    let y_neg = if y < 0 { y } else { 0 };
+    let mut x = ::std::cmp::max(0, x) as u16;
+    let mut y = ::std::cmp::max(0, y) as u16;
+    let mut w = ::std::cmp::max(0, (w as i32 + x_neg)) as u16;
+    let mut h = ::std::cmp::max(0, (h as i32 + y_neg)) as u16;
 
-    // // If there was already some scissor set, we must check for the intersection.
-    // if let Some(rect) = draw_state.scissor {
-    //     if x + w < rect.x || rect.x + rect.w < x || y + h < rect.y || rect.y + rect.h < y {
-    //         // If there is no intersection, we have no scissor.
-    //         w = 0;
-    //         h = 0;
-    //     } else {
-    //         // If there is some intersection, calculate the overlapping rect.
-    //         let (a_l, a_r, a_b, a_t) = (x, x+w, y, y+h);
-    //         let (b_l, b_r, b_b, b_t) = (rect.x, rect.x+rect.w, rect.y, rect.y+rect.h);
-    //         let l = if a_l > b_l { a_l } else { b_l };
-    //         let r = if a_r < b_r { a_r } else { b_r };
-    //         let b = if a_b > b_b { a_b } else { b_b };
-    //         let t = if a_t < b_t { a_t } else { b_t };
-    //         x = l;
-    //         y = b;
-    //         w = r - l;
-    //         h = t - b;
-    //     }
-    // }
+    // If there was already some scissor set, we must check for the intersection.
+    if let Some(rect) = draw_state.scissor {
+        if x + w < rect.x || rect.x + rect.w < x || y + h < rect.y || rect.y + rect.h < y {
+            // If there is no intersection, we have no scissor.
+            w = 0;
+            h = 0;
+        } else {
+            // If there is some intersection, calculate the overlapping rect.
+            let (a_l, a_r, a_b, a_t) = (x, x+w, y, y+h);
+            let (b_l, b_r, b_b, b_t) = (rect.x, rect.x+rect.w, rect.y, rect.y+rect.h);
+            let l = if a_l > b_l { a_l } else { b_l };
+            let r = if a_r < b_r { a_r } else { b_r };
+            let b = if a_b > b_b { a_b } else { b_b };
+            let t = if a_t < b_t { a_t } else { b_t };
+            x = l;
+            y = b;
+            w = r - l;
+            h = t - b;
+        }
+    }
 
-    // Context { draw_state: draw_state.scissor(x, y, w, h), ..context }
+    Context { draw_state: draw_state.scissor(x, y, w, h), ..context }
 }
 
 
@@ -202,7 +173,7 @@ pub fn draw_from_container<G, C>(context: &Context,
                 match rectangle.style {
                     ShapeStyle::Fill(_) => {
                         let color = rectangle.style.get_color(theme);
-                        graphics.draw_rectangle(context, container.rect, color);
+                        draw_rectangle(context, graphics, container.rect, color);
                         // let (l, b, w, h) = container.rect.l_b_w_h();
                         // let lbwh = [l, b, w, h];
                         // let rectangle = graphics::Rectangle::new(color);
@@ -212,7 +183,7 @@ pub fn draw_from_container<G, C>(context: &Context,
                         let (l, r, b, t) = container.rect.l_r_b_t();
                         let points = [[l, b], [l, t], [r, t], [r, b], [l, b]];
                         let points = points.iter().cloned();
-                        graphics.draw_lines(context, theme, points, line_style);
+                        draw_lines(context, graphics, theme, points, line_style);
                     },
                 }
             }
@@ -224,11 +195,11 @@ pub fn draw_from_container<G, C>(context: &Context,
                 if frame > 0.0 {
                     let frame_color = framed_rectangle.style.get_frame_color(theme);
                     let frame_rect = container.rect;
-                    graphics.draw_rectangle(context, frame_rect, frame_color);
+                    draw_rectangle(context, graphics, frame_rect, frame_color);
                 }
                 let color = framed_rectangle.style.get_color(theme);
                 let rect = container.rect.pad(frame);
-                graphics.draw_rectangle(context, rect, color);
+                draw_rectangle(context, graphics, rect, color);
             }
         },
 
@@ -250,13 +221,12 @@ pub fn draw_from_container<G, C>(context: &Context,
                 match oval.style {
                     ShapeStyle::Fill(_) => {
                         let color = oval.style.get_color(theme).to_fsa();
-                        // let polygon = graphics::Polygon::new(color);
-                        // polygon.draw(&points, &context.draw_state, context.transform, graphics);
-                        println!("draw polygon");
+                        let polygon = graphics::Polygon::new(color);
+                        polygon.draw(&points, &context.draw_state, context.transform, graphics);
                     },
                     ShapeStyle::Outline(line_style) => {
                         let points = points.iter().cloned();
-                        graphics.draw_lines(context, theme, points, line_style)
+                        draw_lines(context, graphics, theme, points, line_style)
                     },
                 }
             }
@@ -271,15 +241,14 @@ pub fn draw_from_container<G, C>(context: &Context,
                     ShapeStyle::Fill(_) => {
                         let color = polygon.style.get_color(theme).to_fsa();
                         let points = &polygon.state.points[..];
-                        // let polygon = graphics::Polygon::new(color);
-                        // polygon.draw(points, &context.draw_state, context.transform, graphics);
-                        println!("draw polygon");
+                        let polygon = graphics::Polygon::new(color);
+                        polygon.draw(points, &context.draw_state, context.transform, graphics);
                     },
                     ShapeStyle::Outline(line_style) => {
                         let mut points = polygon.state.points.iter().cloned();
                         let first = points.next();
                         let points = first.into_iter().chain(points).chain(first);
-                        graphics.draw_lines(context, theme, points, line_style);
+                        draw_lines(context, graphics, theme, points, line_style);
                     },
                 }
             }
@@ -288,7 +257,7 @@ pub fn draw_from_container<G, C>(context: &Context,
         primitive::line::KIND => {
             if let Some(line) = container.unique_widget_state::<::Line>() {
                 let points = once(line.state.start).chain(once(line.state.end));
-                graphics.draw_lines(context, theme, points, line.style);
+                draw_lines(context, graphics, theme, points, line.style);
             }
         },
 
@@ -296,7 +265,7 @@ pub fn draw_from_container<G, C>(context: &Context,
             use widget::primitive::point_path::{State, Style};
             if let Some(point_path) = container.state_and_style::<State, Style>() {
                 let points = point_path.state.points.iter().cloned();
-                graphics.draw_lines(context, theme, points, point_path.style);
+                draw_lines(context, graphics, theme, points, point_path.style);
             }
         },
 
@@ -312,18 +281,68 @@ pub fn draw_from_container<G, C>(context: &Context,
 
                 let mut line_rects = state.line_rects(rect, text_align, font_size, line_spacing);
                 while let Some((line_rect, line)) = line_rects.next_with_line(character_cache) {
-                    // let offset = [line_rect.left().round(), line_rect.bottom().round()];
-                    // let context = context.trans(offset[0], offset[1]).scale(1.0, -1.0);
-                    // let transform = context.transform;
-                    // let draw_state = &context.draw_state;
-                    graphics.draw_text(line_rect, line);
-                        // .draw(line, character_cache, draw_state, transform, graphics);
-                        // println!("draw text");
+                    let offset = [line_rect.left().round(), line_rect.bottom().round()];
+                    let context = context.trans(offset[0], offset[1]).scale(1.0, -1.0);
+                    let transform = context.transform;
+                    let draw_state = &context.draw_state;
+                    graphics::text::Text::new_color(color, font_size)
+                        .round()
+                        .draw(line, character_cache, draw_state, transform, graphics);
                 }
             }
         },
 
         _ => (),
+    }
+}
+
+
+/// Draw a rectangle at the given Rect.
+pub fn draw_rectangle<G>(context: &Context,
+                         graphics: &mut G,
+                         rect: Rect,
+                         color: Color)
+    where G: Graphics,
+{
+    let (l, b, w, h) = rect.l_b_w_h();
+    let lbwh = [l, b, w, h];
+    let rectangle = graphics::Rectangle::new(color.to_fsa());
+    rectangle.draw(lbwh, &context.draw_state, context.transform, graphics);
+}
+
+
+/// Draw a series of lines between the given **Point**s using the given style.
+pub fn draw_lines<G, I>(context: &Context,
+                        graphics: &mut G,
+                        theme: &Theme,
+                        mut points: I,
+                        style: primitive::line::Style)
+    where G: Graphics,
+          I: Iterator<Item=Point>,
+{
+    use widget::primitive::line::{Cap, Pattern};
+
+    if let Some(first) = points.next() {
+        let pattern = style.get_pattern(theme);
+        let color = style.get_color(theme).to_fsa();
+        let thickness = style.get_thickness(theme);
+        let cap = style.get_cap(theme);
+        match pattern {
+            Pattern::Solid => {
+                let line = match cap {
+                    Cap::Flat => graphics::Line::new(color, thickness / 2.0),
+                    Cap::Round => graphics::Line::new_round(color, thickness / 2.0),
+                };
+                let mut start = first;
+                for end in points {
+                    let coords = [start[0], start[1], end[0], end[1]];
+                    line.draw(coords, &context.draw_state, context.transform, graphics);
+                    start = end;
+                }
+            },
+            Pattern::Dashed => unimplemented!(),
+            Pattern::Dotted => unimplemented!(),
+        }
     }
 }
 
@@ -347,8 +366,8 @@ pub fn draw_scrolling<G>(context: &Context,
             return;
         }
         let color = bar.interaction.color(color);
-        g.draw_rectangle(context, track, track_color);
-        g.draw_rectangle(context, handle, color);
+        draw_rectangle(context, g, track, track_color);
+        draw_rectangle(context, g, handle, color);
     };
 
     // The element for a vertical scroll Bar.

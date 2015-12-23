@@ -40,7 +40,7 @@ pub use widget::toggle::Toggle;
 pub use widget::xy_pad::XYPad;
 
 
-pub use widget::primitive::line::Style as LineStyle;
+pub use widget::primitive::line::{Style as LineStyle, Cap as LineCap, Pattern as LinePattern};
 pub use widget::primitive::shape::Style as ShapeStyle;
 pub use widget::primitive::shape::framed_rectangle::Style as FramedRectangleStyle;
 pub use widget::primitive::text::Style as TextStyle;

@@ -10,3 +10,10 @@
 pub use self::graphics::{CharacterCache, Graphics};
 
 pub mod graphics;
+pub mod context;
+pub mod math;
+pub mod types;
+pub mod texture;
+pub mod character;
+pub mod transformed;
+pub mod modular_index;
